@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 config = dict(
-    data_dir = Path('./data'),
+    data_dir = Path('/home/matyushinleonid/data/projects/PID_Compression/data/'),
 
     classification = dict(
         val_size=0.2,
@@ -22,13 +22,14 @@ config = dict(
 if not os.path.isdir(config['data_dir']):
     os.mkdir(config['data_dir'])
 
-for suf in ['input', 'cache', 'output']:
+for suf in ['cache', 'output']:
     if not os.path.isdir(config['data_dir'] / suf):
         os.mkdir(config['data_dir'] / suf)
 
 if not os.path.isdir(config['data_dir'] / 'cache' / 'initial_data_split'):
     os.mkdir(config['data_dir'] / 'cache' / 'initial_data_split')
 
-if not os.path.isdir(config['data_dir'] / 'cache' / 'models'):
-    os.mkdir(config['data_dir'] / 'cache' / 'models')
+for suf in ['cache', 'output']:
+    if not os.path.isdir(config['data_dir'] / suf / 'models'):
+        os.mkdir(config['data_dir'] / suf / 'models')
 

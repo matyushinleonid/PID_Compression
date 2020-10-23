@@ -8,7 +8,7 @@ class BaseClassifier(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def predict(self, X, **kwargs):
+    def predict(self, X, save=True, filename_suffix=None, **kwargs):
         raise NotImplementedError
 
     @abstractmethod

@@ -1,8 +1,9 @@
+from config import config
+
 from .base import BaseClassifier
 from xgboost import XGBClassifier
 import pandas as pd
 import os
-from config import config
 import pickle
 
 
@@ -15,10 +16,20 @@ class XGBoost(BaseClassifier):
     def fit(self, X_train, y_train, X_val, y_val, **kwargs):
         self._model.fit(X_train, y_train, eval_set=[(X_val, y_val)], **kwargs)
 
-    def predict(self, X, **kwargs):
+    def predict(self, X, save=True, filename_suffix=None, **kwargs):
         preds = self._model.predict(X, **kwargs)
+        preds = pd.DataFrame(preds, columns=[config['classification']['target_column']])
 
-        return pd.DataFrame(preds, columns=[config['classification']['target_column']])
+        if save:
+            preds_dir_path = config['data_dir'] / 'output' / 'models' / self.model_name
+            if not os.path.isdir(preds_dir_path):
+                os.mkdir(preds_dir_path)
+            if filename_suffix:
+                filename = f'predictions_{filename_suffix}.csv'
+            else:
+                filename = f'predictions.csv'
+            preds.to_csv(preds_dir_path / filename, index=False)
+        return preds
 
     def save(self):
         model_dir_path = config['data_dir'] / 'cache' / 'models' / self.model_name
