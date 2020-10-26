@@ -16,6 +16,16 @@ config = dict(
        'S4x0', 'S4x1', 'S4x2', 'S3x2', 'S4x3', 'S4x4', 'S5x1', 'S5x2', 'S5x3',
        'S5x4', 'S4x5'],
         target_column='pid'
+    ),
+
+    compression = dict(
+        latent_dim=3,
+        batch_size=int(1e5),
+        num_workers=24,
+        gpus=[1],
+        max_epochs=10000,
+        early_stopping_min_delta=1e-5,
+        early_stopping_patience=5
     )
 )
 

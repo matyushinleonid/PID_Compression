@@ -1,5 +1,6 @@
 from .base import BaseCompressor
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -10,9 +11,22 @@ from config import config
 
 
 class AE(BaseCompressor):
-    def __init__(self, model_name='ae'):
-        self.model = AE_(50, 3)
-        self.trainer = pl.Trainer(gpus=[1], max_epochs=10000)
+    def __init__(self, input_dim, latent_dim, n_hidden_layers=4, hidden_layer_size=512, lr=1e-4, model_name='ae'):
+        if input_dim is not None and latent_dim is not None:
+            self.model = AE_(input_dim, latent_dim, n_hidden_layers, hidden_layer_size, lr)
+
+        early_stopping_callback = EarlyStopping(
+            monitor='avg_val_loss',
+            min_delta=config['compression']['early_stopping_min_delta'],
+            patience=config['compression']['early_stopping_patience'],
+            verbose=True,
+            mode='min'
+        )
+        self.trainer = pl.Trainer(
+            gpus=config['compression']['gpus'],
+            max_epochs=config['compression']['max_epochs'],
+            early_stop_callback = early_stopping_callback
+        )
 
         self.model_name = model_name
 
@@ -22,9 +36,9 @@ class AE(BaseCompressor):
         )
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
-            batch_size=int(1e5),
-            shuffle=True,
-            num_workers=24
+            batch_size=config['compression']['batch_size'],
+            num_workers=config['compression']['num_workers'],
+            shuffle=True
         )
 
         val_dataset = torch.utils.data.TensorDataset(
@@ -32,8 +46,8 @@ class AE(BaseCompressor):
         )
         val_dataloader = torch.utils.data.DataLoader(
             val_dataset,
-            batch_size=int(1e5),
-            num_workers=24
+            batch_size=config['compression']['batch_size'],
+            num_workers=config['compression']['num_workers']
         )
 
         self.trainer.fit(self.model, train_dataloader, val_dataloader)
@@ -44,10 +58,11 @@ class AE(BaseCompressor):
         )
         dataloader = torch.utils.data.DataLoader(
             dataset,
-            batch_size=int(1e5),
-            num_workers=24
+            batch_size=config['compression']['batch_size'],
+            num_workers=config['compression']['num_workers']
         )
 
+        self.model.test_predictions_buffer = pd.DataFrame()
         self.trainer.test(self.model, dataloader)
         preds = self.model.test_predictions_buffer.sort_index()
 
@@ -56,9 +71,9 @@ class AE(BaseCompressor):
             if not os.path.isdir(preds_dir_path):
                 os.mkdir(preds_dir_path)
             if filename_suffix:
-                filename = f'predictions_{filename_suffix}.csv'
+                filename = f'compressed_{filename_suffix}.csv'
             else:
-                filename = f'predictions.csv'
+                filename = f'compressed.csv'
             preds.to_csv(preds_dir_path / filename, index=False)
 
         return preds
@@ -72,7 +87,7 @@ class AE(BaseCompressor):
 
     @classmethod
     def load(cls, model_name):
-        self = AE(model_name=model_name)
+        self = AE(None, None, model_name=model_name)
         model_dir_path = config['data_dir'] / 'cache' / 'models' / self.model_name
         self.model = AE_.load_from_checkpoint(str(model_dir_path / 'model.ckpt'))
 
@@ -87,6 +102,7 @@ class AE_(pl.LightningModule):
             latent_dim,
             n_hidden_layers=4,
             hidden_layer_size=512,
+            dropout_p=0.05,
             lr=1e-4,
             **kwargs
     ):
@@ -104,7 +120,7 @@ class AE_(pl.LightningModule):
             nn.LeakyReLU(),
             *reduce(
                 lambda x, y: x + y,
-                [[nn.Linear(hidden_layer_size, hidden_layer_size), nn.LeakyReLU()] for _ in range(n_hidden_layers)])
+                [[nn.Linear(hidden_layer_size, hidden_layer_size), nn.LeakyReLU(), nn.Dropout(dropout_p)] for _ in range(n_hidden_layers)])
             ,
             nn.Linear(hidden_layer_size, latent_dim),
         )
@@ -158,7 +174,6 @@ class AE_(pl.LightningModule):
             [output['val_loss'] for output in outputs]
         ).mean()
 
-        print(avg_val_loss.item())
         return {'avg_val_loss': avg_val_loss}
 
     def configure_optimizers(self):
