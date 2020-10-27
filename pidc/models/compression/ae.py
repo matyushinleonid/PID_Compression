@@ -1,6 +1,7 @@
 from .base import BaseCompressor
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning import Trainer, seed_everything
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -11,9 +12,11 @@ from config import config
 
 
 class AE(BaseCompressor):
-    def __init__(self, input_dim, latent_dim, n_hidden_layers=4, hidden_layer_size=512, lr=1e-4, model_name='ae'):
+    def __init__(self, input_dim, latent_dim, n_hidden_layers=6, hidden_layer_size=512, dropout_p=0.05, lr=1e-4, model_name='ae'):
+
+        seed_everything(42)
         if input_dim is not None and latent_dim is not None:
-            self.model = AE_(input_dim, latent_dim, n_hidden_layers, hidden_layer_size, lr)
+            self.model = AE_(input_dim, latent_dim, n_hidden_layers, hidden_layer_size, dropout_p, lr)
 
         early_stopping_callback = EarlyStopping(
             monitor='avg_val_loss',
@@ -25,7 +28,10 @@ class AE(BaseCompressor):
         self.trainer = pl.Trainer(
             gpus=config['compression']['gpus'],
             max_epochs=config['compression']['max_epochs'],
-            early_stop_callback = early_stopping_callback
+            early_stop_callback = early_stopping_callback,
+            #distributed_backend='ddp',
+            #amp_level='O1',
+            #precision=16
         )
 
         self.model_name = model_name
@@ -100,10 +106,10 @@ class AE_(pl.LightningModule):
             self,
             input_dim,
             latent_dim,
-            n_hidden_layers=4,
-            hidden_layer_size=512,
-            dropout_p=0.05,
-            lr=1e-4,
+            n_hidden_layers,
+            hidden_layer_size,
+            dropout_p,
+            lr,
             **kwargs
     ):
         super(AE_, self).__init__()
@@ -118,22 +124,26 @@ class AE_(pl.LightningModule):
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, hidden_layer_size),
             nn.LeakyReLU(),
+            nn.BatchNorm1d(hidden_layer_size),
             *reduce(
                 lambda x, y: x + y,
-                [[nn.Linear(hidden_layer_size, hidden_layer_size), nn.LeakyReLU(), nn.Dropout(dropout_p)] for _ in range(n_hidden_layers)])
+                [[nn.Linear(hidden_layer_size, hidden_layer_size), nn.LeakyReLU(), nn.BatchNorm1d(hidden_layer_size), nn.Dropout(dropout_p)] for _ in range(n_hidden_layers)])
             ,
             nn.Linear(hidden_layer_size, latent_dim),
+            nn.Tanh()
         )
 
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, hidden_layer_size),
             nn.LeakyReLU(),
+            nn.BatchNorm1d(hidden_layer_size),
             *reduce(
                 lambda x, y: x + y,
-                [[nn.Linear(hidden_layer_size, hidden_layer_size), nn.LeakyReLU()] for _ in range(n_hidden_layers)]
+                [[nn.Linear(hidden_layer_size, hidden_layer_size), nn.LeakyReLU(), nn.BatchNorm1d(hidden_layer_size), nn.Dropout(dropout_p)] for _ in range(n_hidden_layers)]
             )
             ,
             nn.Linear(hidden_layer_size, input_dim),
+            nn.Sigmoid()
         )
 
     def forward(self, x):

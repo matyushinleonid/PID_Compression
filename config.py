@@ -22,9 +22,9 @@ config = dict(
         latent_dim=3,
         batch_size=int(1e5),
         num_workers=24,
-        gpus=[1],
+        gpus=[2],
         max_epochs=10000,
-        early_stopping_min_delta=1e-5,
+        early_stopping_min_delta=1e-8,
         early_stopping_patience=5
     )
 )
