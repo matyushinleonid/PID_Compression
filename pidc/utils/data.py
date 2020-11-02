@@ -1,20 +1,28 @@
 from config import config
-
 import pandas as pd
 import os
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import RobustScaler, MinMaxScaler, LabelBinarizer
+
 
 def split_train_val_test(save=True):
     df = pd.read_csv(config['data_dir'] / 'input' / 'data.csv')
 
-    X, y = df[config['classification']['X_columns']], df[config['classification']['target_column']]
+    X, y = df[config['data_import']['X_columns']], df[config['data_import']['target_column']]
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=config['classification']['test_size'],
-                                                        random_state=config['classification']['random_state'])
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=config['data_import']['test_size'],
+                                                        random_state=config['data_import']['random_state'])
     X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
-                                                      test_size=config['classification']['val_size'] / (
-                                                                  1 - config['classification']['test_size']),
-                                                      random_state=1)
+                                                      test_size=config['data_import']['val_size'] / (
+                                                                  1 - config['data_import']['test_size']),
+                                                      random_state=config['data_import']['random_state'])
+
+    if config['data_import']['rescale'] == True:
+        for scaler in [RobustScaler(), MinMaxScaler()]:
+            scaler.fit(X_train)
+            X_train, X_val, X_test = list(
+                map(lambda t: pd.DataFrame(scaler.transform(t), columns=t.columns), [X_train, X_val, X_test])
+            )
 
     if save:
         for file_name, df in {'X_train': X_train, 'X_test': X_test, 'X_val': X_val, 'y_train': y_train,
@@ -28,9 +36,33 @@ def split_train_val_test(save=True):
     return (X_train, y_train), (X_val, y_val), (X_test, y_test)
 
 
-def load_train_val_test():
+def load_train_val_test(kind=None):
     dfs = []
     for file_name in ['X_train', 'y_train', 'X_val', 'y_val', 'X_test', 'y_test']:
-        dfs.append(pd.read_csv(config['data_dir'] / 'cache' / 'initial_data_split' / (file_name + '.csv')))
+
+        if kind == 'classification_on_initial':
+            df = pd.read_csv(config['data_dir'] / 'cache' / 'initial_data_split' / (file_name + '.csv'))
+            if 'X' in file_name:
+                df = df[config['classification']['X_columns']]
+
+        elif kind == 'classification_on_reconstructed':
+            if 'X' in file_name:
+                df = pd.read_csv(config['data_dir'] / 'cache' / 'models' / config['compression']['compressor_name'] / (
+                        'reconstructed_' + file_name + '.csv'))
+                df = df[config['classification']['X_columns']]
+            else:
+                df = pd.read_csv(config['data_dir'] / 'cache' / 'initial_data_split' / (file_name + '.csv'))
+
+        elif kind == 'compression':
+            df = pd.read_csv(config['data_dir'] / 'cache' / 'initial_data_split' / (file_name + '.csv'))
+
+        elif kind == 'generation':
+            if 'X' in file_name:
+                # df = df[config['generation']['X_columns']]
+                raise NotImplementedError
+        else:
+            raise NotImplementedError
+
+        dfs.append(df)
 
     return (dfs[0], dfs[1]), (dfs[2], dfs[3]), (dfs[4], dfs[5])

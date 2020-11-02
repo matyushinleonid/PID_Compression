@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class BaseCompressor(ABC):
     @abstractmethod
     def fit(self, X_train, y_train, X_val, y_val, **kwargs):
@@ -15,5 +16,5 @@ class BaseCompressor(ABC):
 
     @classmethod
     @abstractmethod
-    def load(cls, model_name):
+    def load(cls):
         raise NotImplementedError
