@@ -11,6 +11,7 @@ config = dict(
                    'S1x1', 'S1x2', 'S1x3', 'S1x4', 'S1x5', 'S5x0', 'S4x0', 'S4x1', 'S4x2', 'S3x2', 'S4x3', 'S4x4',
                    'S5x1', 'S5x2', 'S5x3', 'S5x4', 'S4x5'],
         target_column='pid',
+        target_column_classes=6,
         val_size=0.2,
         test_size=0.2,
         random_state=555,
@@ -44,7 +45,13 @@ config = dict(
     generation=dict(
         conditional_columns=['S0aux7', 'S0aux6', 'S3aux0', 'S2aux0', 'S5aux0'],
         compressed_columns=['encoded_feature_1', 'encoded_feature_2', 'encoded_feature_3'],
-        generator_name='my_gan'
+        generator_name='my_gan',
+        batch_size=int(1e5),
+        num_workers=24,
+        gpus=[3],
+        latent_dim=30,
+        max_epochs=4000,
+        lr=1e-4
     )
 )
 

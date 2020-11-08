@@ -110,7 +110,6 @@ class AE(BaseCompressor):
 
 
 class AE_(pl.LightningModule):
-
     def __init__(
             self,
             input_dim,
@@ -154,6 +153,8 @@ class AE_(pl.LightningModule):
             nn.Sigmoid()
         )
 
+        self.compress = True
+
     def forward(self, x):
         z = self.encoder(x)
 
@@ -179,7 +180,11 @@ class AE_(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         x, ids = batch
-        preds_compressed = self.encoder(x)
+        if self.compress == True:
+            preds_compressed = self.encoder(x)
+        else:
+            preds_compressed = x
+
         preds_reconstructed = self.decoder(preds_compressed)
 
         prediction_compressed_to_append = pd.DataFrame(data=preds_compressed.cpu().numpy(),
